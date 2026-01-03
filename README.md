@@ -7,16 +7,20 @@ A comprehensive hardcore survival plugin featuring grace periods, death manageme
 - 🕐 **Grace Period System** - New players receive a grace period where they can die without permanent consequences
 - ⚰️ **Hardcore Death Management** - Players who die outside grace period are spectated and banned
 - 🪽 **Elytra Prevention** - Block elytras from the game for balanced hardcore gameplay
-- 📊 **Item Limiting** - Set maximum limits for specific items per player
+- 📊 **Item Limiting** - Set maximum limits for specific items per player with container storage prevention
 - 💾 **Database Storage** - All grace times and player data persist across server restarts
 - 🎨 **ItemsAdder Integration** - Support for custom death titles and chat messages
 - ⚠️ **Warning System** - Automated warnings when grace time is running out
+- 📋 **Scoreboard & BossBar** - Real-time grace time display with individual toggle options
+- 💬 **Dead Player Chat** - Optional chat restriction for dead players with Discord webhook integration
+- 🎯 **Customizable UI** - Players can toggle scoreboard and bossbar visibility
+- 🔒 **Container Protection** - Prevent limited items from being stored in shulkers/bundles/enderchests
 
 ## Commands
 
-### `/grace [add/remove/set] [player] [minutes]`
+### `/grace [add/remove/set/reset] [player] [minutes]`
 **Aliases:** `/gracetime`, `/gr`  
-**Permission:** `hardcorelife.grace` (default: all players), `hardcorelife.grace.others` (manage others)
+**Permission:** `hardcorelife.grace` (default: all players), `hardcorelife.grace.others` (manage others), `hardcorelife.grace.reset` (reset all)
 
 Manage grace time for yourself or other players.
 
@@ -26,6 +30,7 @@ Manage grace time for yourself or other players.
 /grace add Steve 30              - Add 30 minutes to Steve's grace
 /grace remove Steve 15           - Remove 15 minutes from Steve's grace
 /grace set Steve 120             - Set Steve's grace to exactly 120 minutes
+/grace reset                     - Reset ALL players to 2 hours grace and revive all dead players
 ```
 
 ---
@@ -38,6 +43,34 @@ Revive a dead player and restore them to survival mode.
 **Examples:**
 ```
 /revive Steve                    - Revive Steve and teleport him to spawn
+```
+
+---
+
+### `/toggle [scoreboard|bossbar|all]`
+**Permission:** `hardcorelife.toggle` (default: all players)
+
+Toggle visibility of scoreboard and bossbar displays.
+
+**Examples:**
+```
+/toggle                          - Show toggle options
+/toggle scoreboard               - Toggle scoreboard visibility
+/toggle bossbar                  - Toggle bossbar visibility
+/toggle all                      - Toggle both at once
+```
+
+---
+
+### `/chat <on|off>`
+**Permission:** `hardcorelife.chat.toggle` (default: op)
+
+Enable or disable chat for dead players.
+
+**Examples:**
+```
+/chat on                         - Allow dead players to chat
+/chat off                        - Prevent dead players from chatting
 ```
 
 ---
@@ -64,7 +97,11 @@ Main administrative command for HardcoreLife.
 |------------|-------------|---------|
 | `hardcorelife.grace` | Use `/grace` command | All players |
 | `hardcorelife.grace.others` | Manage other players' grace time | OP |
+| `hardcorelife.grace.reset` | Reset all players' grace periods | OP |
 | `hardcorelife.revive` | Revive dead players | OP |
+| `hardcorelife.toggle` | Toggle scoreboard/bossbar | All players |
+| `hardcorelife.chat.toggle` | Toggle dead player chat | OP |
+| `hardcorelife.chat.bypass` | Chat while dead (when disabled) | OP |
 | `hardcorelife.admin` | Use admin commands | OP |
 | `hardcorelife.bypass` | Bypass all hardcore restrictions | False |
 
@@ -118,6 +155,37 @@ death-titles:
 elytra:
   prevent-usage: true
 
+# Scoreboard settings
+scoreboard:
+  enabled: true
+  title: "&4&lHARDCORE LIFE"
+  update-interval: 20  # In ticks (20 = 1 second)
+
+# BossBar settings
+bossbar:
+  enabled: true
+  title: "&c&lGrace Time Remaining"
+  color: "RED"  # RED, BLUE, GREEN, YELLOW, PINK, PURPLE, WHITE
+  style: "SOLID"  # SOLID, SEGMENTED_6, SEGMENTED_10, SEGMENTED_12, SEGMENTED_20
+  update-interval: 20  # In ticks (20 = 1 second)
+
+# Chat settings
+chat:
+  dead-players-can-chat: true
+  
+  # Discord webhook for dead player messages
+  discord-webhook:
+    enabled: false
+    url: "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL"
+    username: "HardcoreLife Bot"
+    avatar-url: "https://example.com/avatar.png"
+
+# Item limiting system
+item-limit:
+  enabled: true
+  # Prevent limited items from being stored in shulkers/bundles/enderchests
+  prevent-container-storage: true
+
 # Auto-save interval in minutes
 auto-save-interval: 5
 
@@ -129,7 +197,7 @@ debug: false
 
 ### itemlimit.yml
 
-Configure maximum item limits per player.
+Configure maximum item limits per player and container storage.
 
 ```yaml
 # Item Limiting System
@@ -143,6 +211,14 @@ limits:
   ENDER_PEARL: 16
   TNT: 64
 ```
+
+**Features:**
+- **Item Limits:** Players cannot hold more than the specified amount
+- **Container Protection:** When `prevent-container-storage` is enabled in config.yml, players cannot store limited items in:
+  - Shulker boxes
+  - Bundles
+  - Ender chests
+- **Bypass Permission:** Players with `hardcorelife.bypass` can store items anywhere
 
 **Adding More Limits:**
 1. Find the [Minecraft material name](https://hub.spigotmc.org/javadocs/spigot/org/bukkit/Material.html)
@@ -291,14 +367,18 @@ Then distribute the resource pack to your players.
 ### Grace Period System
 1. New players receive initial grace time (default: 2 hours)
 2. Grace time counts down while players are online
-3. Players receive warnings as grace time runs out:
+3. Players see their remaining time on:
+   - **Scoreboard** (right side of screen)
+   - **BossBar** (top of screen)
+   - Both can be toggled with `/toggle`
+4. Players receive warnings as grace time runs out:
    - 1 hour remaining
    - 30 minutes remaining
    - 10 minutes remaining
    - 5 minutes remaining
    - 1 minute remaining
    - 10-second countdown
-4. When grace expires, next death becomes permanent
+5. When grace expires, next death becomes permanent
 
 ### Death Mechanics
 - **Death within grace:** Player respawns at safe location, no penalty
@@ -307,12 +387,39 @@ Then distribute the resource pack to your players.
   2. Server-wide death message broadcast
   3. After 5 minutes (configurable), player is banned
   4. Only admins can revive with `/revive`
+- **Dead Player Chat:**
+  - Can be enabled/disabled with `/chat on|off`
+  - Optional Discord webhook integration for dead player messages
+  - Players with `hardcorelife.chat.bypass` can always chat
+
+### Item Limiting
+- **Inventory Limits:** Players cannot hold more than the configured amount
+- **Container Protection:** Prevents limited items from being stored in:
+  - Shulker boxes (including when placed)
+  - Bundles
+  - Ender chests
+- **Smart Detection:** Works with both regular clicks and shift-clicks
+- **Bypass:** Players with `hardcorelife.bypass` permission ignore all limits
+
+### Grace Reset
+The `/grace reset` command provides a complete server-wide reset:
+- Resets all players' grace to 2 hours (both online and offline)
+- Revives all dead players
+- Clears all used grace records from database
+- Removes all dead player bans
+- Broadcasts announcement to all online players
 
 ### Database Storage
 All grace times and player data are stored in SQLite database (`plugins/HardcoreLife/data.db`), ensuring no data loss during:
 - Server restarts
 - Plugin updates
 - Unexpected crashes
+
+**Stored Data:**
+- Grace times (per player)
+- Used grace records
+- Dead player status
+- Player UI preferences (scoreboard/bossbar toggles)
 
 ## Installation
 
@@ -337,6 +444,6 @@ If you encounter any issues or have suggestions, please create an issue on GitHu
 
 ---
 
-**Author:** Dutchwilco  
+**Author:** Dutchwilco
 **Version:** 1.0.0  
 **License:** All Rights Reserved
